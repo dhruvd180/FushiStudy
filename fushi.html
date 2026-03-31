@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fushi — Weekly Planner</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+:root{--bg:#0f0f0e;--surface:#1a1a18;--surface2:#232320;--border:#2e2e2a;--accent:#e8ff6b;--accent2:#ff8c42;--text:#f0ede6;--muted:#7a7a6e;--low:#6bcfff;--med:#ffb347;--high:#ff6b6b;--done:#6bff9e;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+.bg-grid{position:fixed;inset:0;z-index:0;background-image:linear-gradient(rgba(232,255,107,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(232,255,107,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;}
+.bg-blob{position:fixed;z-index:0;border-radius:50%;filter:blur(80px);pointer-events:none;}
+.blob1{width:500px;height:500px;background:rgba(232,255,107,.06);top:-150px;right:-100px;}
+.blob2{width:400px;height:400px;background:rgba(255,140,66,.05);bottom:-100px;left:-80px;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+
+/* ── ONBOARDING OVERLAY ── */
+#onboarding{position:fixed;inset:0;z-index:1000;background:rgba(15,15,14,.95);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;padding:1rem;}
+#onboarding.hidden{display:none;}
+.ob-card{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:2.5rem;max-width:520px;width:100%;animation:fadeUp .5s ease both;max-height:90vh;overflow-y:auto;}
+.ob-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem;}
+.ob-logo{font-family:'Instrument Serif',serif;font-size:1.4rem;font-style:italic;color:var(--accent);}
+.ob-dots{display:flex;gap:.5rem;}
+.ob-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:all .3s;}
+.ob-dot.active{background:var(--accent);width:24px;border-radius:4px;}
+.ob-dot.done{background:var(--done);}
+.ob-step{display:none;}
+.ob-step.active{display:block;}
+.ob-step h2{font-family:'Instrument Serif',serif;font-size:1.8rem;font-style:italic;margin-bottom:.4rem;}
+.ob-step p{color:var(--muted);font-size:.85rem;line-height:1.6;margin-bottom:1.5rem;}
+.ob-footer{display:flex;align-items:center;justify-content:space-between;margin-top:2rem;padding-top:1.5rem;border-top:1px solid var(--border);}
+.ob-step-label{font-size:.72rem;color:var(--muted);font-family:'DM Mono',monospace;}
+.ob-nav{display:flex;gap:.75rem;}
+.btn-ob-back{padding:.6rem 1.25rem;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:9px;font-family:'Sora',sans-serif;font-size:.85rem;cursor:pointer;transition:all .2s;}
+.btn-ob-back:hover{border-color:var(--text);color:var(--text);}
+.btn-ob-next{padding:.6rem 1.5rem;background:var(--accent);color:var(--bg);border:none;border-radius:9px;font-family:'Sora',sans-serif;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s;}
+.btn-ob-next:hover{background:#d4eb50;transform:translateY(-1px);}
+.btn-ob-skip{padding:.6rem 1rem;background:transparent;border:none;color:var(--muted);font-family:'Sora',sans-serif;font-size:.8rem;cursor:pointer;text-decoration:underline;text-underline-offset:3px;}
+.btn-ob-skip:hover{color:var(--text);}
+
+/* form fields */
+.form-field{margin-bottom:.75rem;}
+.form-field label{display:block;font-size:.72rem;color:var(--muted);margin-bottom:.35rem;font-weight:500;}
+.form-field input,.form-field select,.form-field textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.6rem .75rem;color:var(--text);font-family:'Sora',sans-serif;font-size:.82rem;outline:none;transition:border-color .2s;}
+.form-field input:focus,.form-field select:focus,.form-field textarea:focus{border-color:var(--accent);}
+.form-field input::placeholder,.form-field textarea::placeholder{color:var(--muted);}
+.form-field select option{background:var(--surface2);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;}
+.form-field input[type=range]{padding:0;border:none;background:none;height:auto;}
+.range-row{display:flex;align-items:center;gap:.75rem;}
+.range-val{font-family:'DM Mono',monospace;font-size:.85rem;color:var(--accent);width:4rem;text-align:right;flex-shrink:0;}
+input[type=range]{appearance:none;height:4px;background:var(--border);border-radius:2px;cursor:pointer;}
+input[type=range]::-webkit-slider-thumb{appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer;}
+
+/* day chips */
+.day-chips{display:flex;gap:.4rem;flex-wrap:wrap;}
+.day-chip{padding:.3rem .6rem;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:.72rem;color:var(--muted);cursor:pointer;transition:all .15s;font-family:'DM Mono',monospace;user-select:none;}
+.day-chip.on{border-color:var(--accent);color:var(--accent);background:rgba(232,255,107,.08);}
+
+/* warning banner */
+.warn-banner{background:rgba(255,140,66,.1);border:1px solid rgba(255,140,66,.3);border-radius:10px;padding:.75rem 1rem;font-size:.8rem;color:var(--accent2);margin-bottom:1rem;line-height:1.5;}
+
+/* canvas assignment list */
+.assign-list{max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:.75rem;}
+.assign-item{display:flex;align-items:center;gap:.6rem;padding:.6rem .75rem;border-bottom:1px solid var(--border);font-size:.8rem;}
+.assign-item:last-child{border-bottom:none;}
+.assign-item input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;flex-shrink:0;}
+.assign-course{font-size:.68rem;color:var(--muted);margin-left:auto;font-family:'DM Mono',monospace;}
+
+/* activity editor */
+.activity-list{display:flex;flex-direction:column;gap:.5rem;margin-bottom:.75rem;max-height:220px;overflow-y:auto;}
+.activity-row{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:.75rem;}
+.activity-row-top{display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center;margin-bottom:.5rem;}
+.activity-row input[type=text]{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:.4rem .6rem;color:var(--text);font-family:'Sora',sans-serif;font-size:.8rem;outline:none;width:100%;}
+.activity-row input[type=text]:focus{border-color:var(--accent);}
+.activity-row input[type=color]{width:28px;height:28px;border:none;border-radius:6px;background:none;cursor:pointer;padding:0;}
+.activity-times{display:flex;align-items:center;gap:.5rem;font-size:.78rem;color:var(--muted);margin-bottom:.5rem;}
+.activity-times input[type=time]{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:.3rem .5rem;color:var(--text);font-size:.78rem;outline:none;font-family:'DM Mono',monospace;color-scheme:dark;}
+.activity-times input[type=time]:focus{border-color:var(--accent);}
+.btn-rm{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;line-height:1;padding:.2rem .4rem;border-radius:4px;}
+.btn-rm:hover{color:var(--high);}
+.btn-add-activity{width:100%;padding:.6rem;background:transparent;border:1px dashed var(--border);border-radius:8px;color:var(--muted);font-family:'Sora',sans-serif;font-size:.82rem;cursor:pointer;transition:all .2s;}
+.btn-add-activity:hover{border-color:var(--accent);color:var(--accent);}
+
+/* google auth button */
+.btn-google{display:flex;align-items:center;justify-content:center;gap:.75rem;width:100%;padding:.875rem 1.5rem;background:var(--accent);color:var(--bg);border:none;border-radius:12px;font-family:'Sora',sans-serif;font-size:.9rem;font-weight:600;cursor:pointer;transition:all .2s;margin-bottom:.75rem;}
+.btn-google:hover{background:#d4eb50;transform:translateY(-1px);}
+.btn-google svg{width:18px;height:18px;flex-shrink:0;}
+.auth-status{font-size:.8rem;color:var(--done);text-align:center;display:none;}
+.auth-status.show{display:block;}
+.auth-err{font-size:.8rem;color:var(--high);text-align:center;display:none;margin-top:.5rem;}
+.auth-err.show{display:block;}
+.client-id-row{margin-bottom:1rem;}
+.client-id-help{font-size:.72rem;color:var(--muted);margin-top:.3rem;}
+.client-id-help a{color:var(--accent);text-decoration:none;}
+.ics-divider{display:flex;align-items:center;gap:.75rem;margin:.75rem 0;color:var(--muted);font-size:.75rem;}
+.ics-divider::before,.ics-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.btn-ics{width:100%;padding:.6rem;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'Sora',sans-serif;font-size:.82rem;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:.5rem;}
+.btn-ics:hover{border-color:var(--accent);color:var(--accent);}
+#ics-file-input{display:none;}
+
+/* ── MAIN APP ── */
+#app{display:none;min-height:100vh;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.5rem;border-bottom:1px solid var(--border);background:rgba(15,15,14,.85);backdrop-filter:blur(12px);position:sticky;top:0;z-index:100;gap:1rem;}
+.topbar-logo{display:flex;align-items:center;gap:.5rem;font-family:'Instrument Serif',serif;font-size:1.3rem;font-style:italic;color:var(--accent);flex-shrink:0;}
+.topbar-logo .dot{width:7px;height:7px;background:var(--accent);border-radius:50%;animation:pulse 2s ease infinite;}
+.topbar-week{display:flex;align-items:center;gap:.5rem;}
+.btn-week-nav{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:7px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;font-size:.9rem;}
+.btn-week-nav:hover{border-color:var(--accent);color:var(--accent);}
+.week-label{font-family:'DM Mono',monospace;font-size:.8rem;color:var(--text);white-space:nowrap;}
+.btn-today{padding:.35rem .75rem;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-family:'Sora',sans-serif;font-size:.75rem;cursor:pointer;transition:all .15s;}
+.btn-today:hover{border-color:var(--accent);color:var(--accent);}
+.topbar-right{display:flex;align-items:center;gap:.75rem;flex-shrink:0;}
+.user-chip{display:flex;align-items:center;gap:.5rem;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:.3rem .7rem;font-size:.78rem;color:var(--muted);}
+.btn-sync{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:.35rem .8rem;font-size:.75rem;font-family:'Sora',sans-serif;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:.4rem;}
+.btn-sync:hover{border-color:var(--accent);color:var(--accent);}
+.btn-sync.spinning svg{animation:spin 1s linear infinite;}
+
+/* layout */
+.main-layout{display:grid;grid-template-columns:300px 1fr;min-height:calc(100vh - 53px);}
+.sidebar{border-right:1px solid var(--border);padding:1.25rem;display:flex;flex-direction:column;gap:1.25rem;background:var(--surface);overflow-y:auto;max-height:calc(100vh - 53px);}
+.section-label{font-size:.63rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:.6rem;}
+
+/* time block */
+.time-block{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:1rem;}
+.time-display{font-family:'DM Mono',monospace;font-size:2.4rem;color:var(--accent);line-height:1;margin-bottom:.2rem;}
+.time-sub{font-size:.75rem;color:var(--muted);}
+.available-time{margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border);}
+.avail-label{font-size:.72rem;color:var(--muted);margin-bottom:.4rem;}
+.avail-bar{height:5px;background:var(--border);border-radius:999px;overflow:hidden;margin-bottom:.35rem;}
+.avail-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:999px;transition:width .5s ease;}
+.avail-text{font-family:'DM Mono',monospace;font-size:.78rem;color:var(--text);}
+
+/* now card */
+.now-card{background:linear-gradient(135deg,var(--surface2) 0%,rgba(232,255,107,.05) 100%);border:1px solid rgba(232,255,107,.2);border-radius:16px;padding:1.25rem;position:relative;overflow:hidden;}
+.now-card::before{content:'';position:absolute;top:-30px;right:-30px;width:140px;height:140px;background:radial-gradient(circle,rgba(232,255,107,.08) 0%,transparent 70%);pointer-events:none;}
+.now-badge{display:inline-flex;align-items:center;gap:.35rem;background:var(--accent);color:var(--bg);font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.25rem .6rem;border-radius:999px;margin-bottom:.75rem;}
+.now-badge .live-dot{width:5px;height:5px;background:var(--bg);border-radius:50%;animation:pulse 1.5s ease infinite;}
+.now-title{font-family:'Instrument Serif',serif;font-size:1.4rem;font-style:italic;margin-bottom:.4rem;line-height:1.2;}
+.now-meta{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem;}
+.now-meta-item{display:flex;align-items:center;gap:.3rem;font-size:.75rem;color:var(--muted);font-family:'DM Mono',monospace;}
+.now-meta-item svg{width:12px;height:12px;}
+.now-reason{background:rgba(232,255,107,.07);border:1px solid rgba(232,255,107,.12);border-radius:8px;padding:.6rem .8rem;font-size:.76rem;color:var(--accent);margin-bottom:.75rem;line-height:1.5;}
+.now-actions{display:flex;gap:.5rem;flex-wrap:wrap;}
+.btn-done{padding:.55rem 1.25rem;background:var(--done);color:var(--bg);border:none;border-radius:8px;font-family:'Sora',sans-serif;font-weight:600;font-size:.82rem;cursor:pointer;transition:all .2s;}
+.btn-done:hover{filter:brightness(1.1);transform:translateY(-1px);}
+.btn-skip{padding:.55rem .9rem;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:8px;font-family:'Sora',sans-serif;font-size:.82rem;cursor:pointer;transition:all .2s;}
+.btn-skip:hover{border-color:var(--text);color:var(--text);}
+.empty-now{text-align:center;padding:2rem 1rem;color:var(--muted);font-size:.82rem;}
+.empty-now .big-emoji{font-size:2rem;margin-bottom:.5rem;}
+.empty-now h3{font-family:'Instrument Serif',serif;font-size:1.1rem;font-style:italic;color:var(--text);margin-bottom:.35rem;}
+
+/* add task */
+.add-task-form{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:1rem;}
+.btn-add{width:100%;padding:.6rem;background:var(--accent);color:var(--bg);border:none;border-radius:8px;font-family:'Sora',sans-serif;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .2s;margin-top:.25rem;}
+.btn-add:hover{background:#d4eb50;transform:translateY(-1px);}
+
+/* tags */
+.tag{display:inline-flex;align-items:center;font-size:.65rem;font-weight:600;padding:.12rem .45rem;border-radius:4px;font-family:'DM Mono',monospace;}
+.tag-high{background:rgba(255,107,107,.15);color:var(--high);}
+.tag-med{background:rgba(255,179,71,.15);color:var(--med);}
+.tag-low{background:rgba(107,207,255,.15);color:var(--low);}
+.tag-done{background:rgba(107,255,158,.15);color:var(--done);}
+
+/* queue */
+.queue-list{display:flex;flex-direction:column;gap:.45rem;}
+.queue-item{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:.75rem 1rem;display:flex;align-items:center;gap:.75rem;transition:all .2s;}
+.queue-item:hover{background:var(--surface2);}
+.queue-rank{font-family:'DM Mono',monospace;font-size:1rem;color:var(--border);width:20px;flex-shrink:0;text-align:center;}
+.queue-item-info{flex:1;min-width:0;}
+.queue-item-name{font-size:.85rem;font-weight:500;margin-bottom:.2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.queue-item-meta{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;}
+.queue-item-time{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--muted);}
+.queue-item-due{font-size:.68rem;color:var(--muted);}
+.due-urgent{color:var(--high)!important;}
+.due-soon{color:var(--med)!important;}
+.queue-item-actions{display:flex;gap:.3rem;flex-shrink:0;}
+.btn-icon{background:transparent;border:1px solid var(--border);border-radius:6px;width:27px;height:27px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);transition:all .15s;}
+.btn-icon:hover{border-color:var(--done);color:var(--done);}
+.btn-icon.del:hover{border-color:var(--high);color:var(--high);}
+.btn-icon svg{width:12px;height:12px;}
+.queue-item.done-item{opacity:.45;}
+.queue-item.done-item .queue-item-name{text-decoration:line-through;}
+.empty-queue{text-align:center;color:var(--muted);font-size:.8rem;padding:2rem;background:var(--surface);border:1px dashed var(--border);border-radius:11px;}
+
+/* ── WEEKLY GRID ── */
+.grid-area{padding:1rem 1.25rem;overflow:auto;position:relative;}
+.week-grid{display:grid;grid-template-columns:52px repeat(7,1fr);min-width:640px;}
+.grid-head-cell{padding:.5rem .25rem;text-align:center;position:sticky;top:0;background:rgba(15,15,14,.9);backdrop-filter:blur(8px);z-index:10;border-bottom:1px solid var(--border);}
+.grid-day-name{font-size:.7rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);}
+.grid-day-num{font-family:'DM Mono',monospace;font-size:1.1rem;color:var(--text);line-height:1.2;}
+.grid-day-num.today-num{background:var(--accent);color:var(--bg);border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;margin:0 auto;font-size:.9rem;}
+.grid-corner{position:sticky;top:0;background:rgba(15,15,14,.9);backdrop-filter:blur(8px);z-index:11;border-bottom:1px solid var(--border);}
+.grid-body{grid-column:1/-1;display:contents;}
+.grid-row{display:contents;}
+.grid-time-cell{padding:.25rem .4rem 0 0;text-align:right;font-family:'DM Mono',monospace;font-size:.65rem;color:var(--muted);height:60px;position:relative;top:-8px;}
+.grid-day-col{position:relative;height:60px;border-left:1px solid var(--border);border-bottom:1px solid rgba(46,46,42,.4);}
+.grid-day-col.today-col{background:rgba(232,255,107,.015);}
+.now-line{position:absolute;left:0;right:0;height:2px;background:var(--accent);z-index:5;pointer-events:none;}
+.now-line::before{content:'';position:absolute;left:-4px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--accent);}
+
+/* event blocks */
+.ev-block{position:absolute;left:2px;right:2px;border-radius:6px;padding:.2rem .35rem;font-size:.68rem;overflow:hidden;cursor:default;z-index:3;line-height:1.3;}
+.ev-block .ev-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ev-block .ev-time{opacity:.75;font-family:'DM Mono',monospace;font-size:.6rem;}
+.ev-gcal{background:rgba(66,133,244,.25);border:1px solid rgba(66,133,244,.4);color:#93bbff;}
+.ev-activity{border-radius:6px;opacity:.85;}
+.ev-study{border-radius:6px;border:1px solid rgba(232,255,107,.35);background:rgba(232,255,107,.1);color:var(--accent);}
+.ev-study .ev-title::before{content:'📚 ';}
+
+/* toast */
+#toast-container{position:fixed;bottom:1.5rem;right:1.5rem;z-index:999;display:flex;flex-direction:column;gap:.4rem;}
+.toast{background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:.65rem 1rem;font-size:.8rem;color:var(--text);animation:toastIn .3s ease;display:flex;align-items:center;gap:.5rem;}
+.toast.success{border-color:rgba(107,255,158,.3);}
+.toast.error{border-color:rgba(255,107,107,.3);}
+
+/* session progress */
+.sp-bar{height:3px;background:var(--border);border-radius:999px;overflow:hidden;margin-top:.5rem;}
+.sp-fill{height:100%;background:var(--accent);border-radius:999px;transition:width 1s linear;}
+
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+@media(max-width:768px){
+  .main-layout{grid-template-columns:1fr;}
+  .sidebar{border-right:none;border-bottom:1px solid var(--border);max-height:none;}
+  .topbar-week{display:none;}
+}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+
+<!-- ONBOARDING MODAL -->
+<div id="onboarding">
+  <div class="ob-card">
+    <div class="ob-header">
+      <div class="ob-logo">Fushi</div>
+      <div class="ob-dots">
+        <div class="ob-dot active" id="dot0"></div>
+        <div class="ob-dot" id="dot1"></div>
+        <div class="ob-dot" id="dot2"></div>
+        <div class="ob-dot" id="dot3"></div>
+      </div>
+    </div>
+
+    <!-- Step 1: Google Calendar -->
+    <div class="ob-step active" id="step0">
+      <h2>Connect your calendar</h2>
+      <p>Fushi reads your Google Calendar to see what's blocking your week, then schedules study sessions in the gaps.</p>
+      <div class="client-id-row form-field">
+        <label>Google OAuth Client ID</label>
+        <input type="text" id="gClientId" placeholder="xxxx.apps.googleusercontent.com" />
+        <div class="client-id-help">Create one free at <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a> — add your site's origin to Authorized Origins.</div>
+      </div>
+      <button class="btn-google" id="btnGoogleAuth" onclick="startGoogleAuth()">
+        <svg viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+        Sign in with Google
+      </button>
+      <div class="auth-status" id="authStatus">✓ Calendar connected!</div>
+      <div class="auth-err" id="authErr">Auth failed — check your Client ID and authorized origins.</div>
+      <div class="ob-footer">
+        <span class="ob-step-label">Step 1 of 4</span>
+        <div class="ob-nav">
+          <button class="btn-ob-skip" onclick="skipStep()">Skip for now</button>
+          <button class="btn-ob-next" onclick="nextStep()">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Canvas LMS -->
+    <div class="ob-step" id="step1">
+      <h2>Sync assignments</h2>
+      <p>Pull your upcoming Canvas assignments so Fushi can build your study plan automatically.</p>
+      <div class="warn-banner">⚠️ <strong>CORS notice:</strong> Canvas API does not support direct browser requests from arbitrary origins. Sync may fail unless your institution enables it. If it fails, import a <strong>.ics file</strong> instead.</div>
+      <div class="form-field">
+        <label>Institution URL</label>
+        <input type="url" id="canvasUrl" placeholder="https://school.instructure.com" />
+      </div>
+      <div class="form-field">
+        <label>Canvas API Token</label>
+        <input type="password" id="canvasToken" placeholder="Paste your token from Canvas → Account → Settings" />
+      </div>
+      <button class="btn-ob-next" style="width:100%;margin-bottom:.5rem" onclick="fetchCanvas()">Fetch Assignments</button>
+      <div id="canvasStatus" style="font-size:.78rem;color:var(--muted);text-align:center;min-height:1.2rem;margin-bottom:.5rem;"></div>
+      <div class="assign-list" id="assignList" style="display:none;"></div>
+      <div class="ics-divider">or import</div>
+      <label class="btn-ics" for="ics-file-input">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload .ics file
+      </label>
+      <input type="file" id="ics-file-input" accept=".ics" onchange="handleIcs(event)">
+      <div id="icsStatus" style="font-size:.78rem;color:var(--done);text-align:center;min-height:1rem;margin-top:.4rem;"></div>
+      <div class="ob-footer">
+        <span class="ob-step-label">Step 2 of 4</span>
+        <div class="ob-nav">
+          <button class="btn-ob-back" onclick="prevStep()">← Back</button>
+          <button class="btn-ob-skip" onclick="skipStep()">Skip</button>
+          <button class="btn-ob-next" onclick="importSelected()">Import & Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Activities -->
+    <div class="ob-step" id="step2">
+      <h2>Block off your time</h2>
+      <p>Add recurring activities so Fushi never schedules study sessions during them.</p>
+      <div class="activity-list" id="activityList"></div>
+      <button class="btn-add-activity" onclick="addActivity()">+ Add activity</button>
+      <div class="ob-footer">
+        <span class="ob-step-label">Step 3 of 4</span>
+        <div class="ob-nav">
+          <button class="btn-ob-back" onclick="prevStep()">← Back</button>
+          <button class="btn-ob-next" onclick="saveActivities()">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4: Preferences -->
+    <div class="ob-step" id="step3">
+      <h2>Your work style</h2>
+      <p>Tell Fushi when and how much you prefer to study each day.</p>
+      <div class="form-row" style="margin-bottom:.75rem">
+        <div class="form-field">
+          <label>Study from</label>
+          <input type="time" id="prefStart" value="08:00" />
+        </div>
+        <div class="form-field">
+          <label>Study until</label>
+          <input type="time" id="prefEnd" value="22:00" />
+        </div>
+      </div>
+      <div class="form-field" style="margin-bottom:.75rem">
+        <label>Available days</label>
+        <div class="day-chips" id="prefDays">
+          <span class="day-chip on" data-d="0">Mon</span>
+          <span class="day-chip on" data-d="1">Tue</span>
+          <span class="day-chip on" data-d="2">Wed</span>
+          <span class="day-chip on" data-d="3">Thu</span>
+          <span class="day-chip on" data-d="4">Fri</span>
+          <span class="day-chip on" data-d="5">Sat</span>
+          <span class="day-chip on" data-d="6">Sun</span>
+        </div>
+      </div>
+      <div class="form-field">
+        <label>Max focused work per day</label>
+        <div class="range-row">
+          <input type="range" id="prefMaxHours" min="1" max="8" value="4" oninput="document.getElementById('prefMaxHoursVal').textContent=this.value+'h'">
+          <span class="range-val" id="prefMaxHoursVal">4h</span>
+        </div>
+      </div>
+      <div class="form-field">
+        <label>Max session length before a break</label>
+        <div class="range-row">
+          <input type="range" id="prefSessionLen" min="30" max="120" step="5" value="60" oninput="document.getElementById('prefSessionLenVal').textContent=this.value+'min'">
+          <span class="range-val" id="prefSessionLenVal">60min</span>
+        </div>
+      </div>
+      <div class="ob-footer">
+        <span class="ob-step-label">Step 4 of 4</span>
+        <div class="ob-nav">
+          <button class="btn-ob-back" onclick="prevStep()">← Back</button>
+          <button class="btn-ob-next" onclick="finishOnboarding()">Let's go! 🚀</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-logo"><span>Fushi</span><div class="dot"></div></div>
+    <div class="topbar-week">
+      <button class="btn-week-nav" onclick="shiftWeek(-1)">&#8249;</button>
+      <span class="week-label" id="weekLabel">—</span>
+      <button class="btn-week-nav" onclick="shiftWeek(1)">&#8250;</button>
+      <button class="btn-today" onclick="goToday()">Today</button>
+    </div>
+    <div class="topbar-right">
+      <button class="btn-sync" id="syncBtn" onclick="syncCalendar()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0118.8-4.3M22 12.5a10 10 0 01-18.8 4.3"/></svg>
+        Sync
+      </button>
+      <div class="user-chip" id="userChip"><span id="userName">—</span></div>
+    </div>
+  </div>
+
+  <div class="main-layout">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div>
+        <div class="section-label">Right Now</div>
+        <div class="time-block">
+          <div class="time-display" id="clock">—:—</div>
+          <div class="time-sub" id="dateStr">Loading…</div>
+          <div class="available-time">
+            <div class="avail-label">Free time today</div>
+            <div class="avail-bar"><div class="avail-fill" id="availFill" style="width:0%"></div></div>
+            <div class="avail-text" id="availText">Calculating…</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-label">Work on this now</div>
+        <div id="nowSection"></div>
+      </div>
+
+      <div>
+        <div class="section-label">Add Assignment</div>
+        <div class="add-task-form">
+          <div class="form-field">
+            <label>Name</label>
+            <input type="text" id="taskName" placeholder="e.g. Math Problem Set" />
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>Duration (min)</label>
+              <input type="number" id="taskDuration" placeholder="60" min="5" max="480" />
+            </div>
+            <div class="form-field">
+              <label>Priority</label>
+              <select id="taskPriority">
+                <option value="high">High</option>
+                <option value="med" selected>Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-field">
+            <label>Due Date</label>
+            <input type="date" id="taskDue" />
+          </div>
+          <button class="btn-add" onclick="addTask()">+ Add Assignment</button>
+        </div>
+      </div>
+
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem">
+          <div class="section-label" style="margin-bottom:0">Queue</div>
+          <div style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--muted)" id="queueCount">0</div>
+        </div>
+        <div class="queue-list" id="queueList"></div>
+      </div>
+    </div>
+
+    <!-- Weekly grid -->
+    <div class="grid-area">
+      <div class="week-grid" id="weekGrid"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script>
+// ── STATE ──────────────────────────────────────────────
+const LS = {
+  get: (k, def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; } },
+  set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
+};
+const SS = {
+  get: (k, def) => { try { return JSON.parse(sessionStorage.getItem(k)) ?? def; } catch { return def; } },
+  set: (k, v) => sessionStorage.setItem(k, JSON.stringify(v)),
+};
+
+let tasks       = LS.get('fushi_tasks', []);
+let activities  = LS.get('fushi_activities', null); // null = not yet set
+let prefs       = LS.get('fushi_prefs', null);
+let calEvents   = SS.get('fushi_cal', []);
+let calToken    = SS.get('fushi_cal_token', null);
+let currentWeekStart = getWeekStart(new Date());
+let obStep      = 0;
+let pendingAssignments = []; // from Canvas/ICS fetch
+let tokenClient = null;
+let sessionStart = null;
+let sessionTimer = null;
+
+// ── HELPERS ────────────────────────────────────────────
+function uid() { return Math.random().toString(36).slice(2, 9); }
+function saveTasks() { LS.set('fushi_tasks', tasks); }
+function daysUntil(s) {
+  if (!s) return 999;
+  return Math.ceil((new Date(s + 'T23:59:59') - new Date()) / 86400000);
+}
+function fmtDuration(m) {
+  const h = Math.floor(m / 60), r = m % 60;
+  return h && r ? `${h}h ${r}m` : h ? `${h}h` : `${m}m`;
+}
+function fmtDue(s) {
+  if (!s) return '';
+  const d = daysUntil(s);
+  if (d <= 0) return 'Due today';
+  if (d === 1) return 'Due tomorrow';
+  if (d <= 7) return `Due in ${d}d`;
+  return `Due ${new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+}
+function priorityScore(t) {
+  return daysUntil(t.due) * 10 + { high: 0, med: 3, low: 6 }[t.priority] + t.duration * 0.01;
+}
+function sortedQueue() {
+  return [...tasks].filter(t => !t.done).sort((a, b) => priorityScore(a) - priorityScore(b));
+}
+function getWeekStart(d) {
+  const dt = new Date(d);
+  const day = dt.getDay(); // 0=Sun
+  const diff = (day === 0) ? -6 : 1 - day; // Monday-start
+  dt.setDate(dt.getDate() + diff);
+  dt.setHours(0, 0, 0, 0);
+  return dt;
+}
+function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+function isoDate(d) { return d.toISOString().split('T')[0]; }
+function todayAt(h, m) { const d = new Date(); d.setHours(h, m, 0, 0); return d.toISOString(); }
+
+// ── CLOCK ──────────────────────────────────────────────
+function updateClock() {
+  const n = new Date();
+  const h = n.getHours().toString().padStart(2, '0');
+  const m = n.getMinutes().toString().padStart(2, '0');
+  document.getElementById('clock').textContent = `${h}:${m}`;
+  document.getElementById('dateStr').textContent = n.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+}
+setInterval(updateClock, 1000); updateClock();
+
+// ── ONBOARDING ─────────────────────────────────────────
+function showOnboarding() {
+  document.getElementById('onboarding').classList.remove('hidden');
+  document.getElementById('app').style.display = 'none';
+  renderActivitiesEditor();
+  goStep(0);
+}
+
+function goStep(n) {
+  obStep = n;
+  document.querySelectorAll('.ob-step').forEach((s, i) => s.classList.toggle('active', i === n));
+  document.querySelectorAll('.ob-dot').forEach((d, i) => {
+    d.classList.toggle('active', i === n);
+    d.classList.toggle('done', i < n);
+  });
+}
+function nextStep() { if (obStep < 3) goStep(obStep + 1); }
+function prevStep() { if (obStep > 0) goStep(obStep - 1); }
+function skipStep() { nextStep(); }
+
+// ── STEP 1: Google Auth ────────────────────────────────
+function startGoogleAuth() {
+  const clientId = document.getElementById('gClientId').value.trim();
+  if (!clientId) { showAuthErr('Paste your Google OAuth Client ID above first.'); return; }
+  LS.set('fushi_gclient', clientId);
+  if (typeof google === 'undefined' || !google.accounts) {
+    showAuthErr('GIS script not loaded — check your internet connection.'); return;
+  }
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: clientId,
+    scope: 'https://www.googleapis.com/auth/calendar.readonly',
+    callback: onGoogleToken,
+  });
+  tokenClient.requestAccessToken({ prompt: 'consent' });
+}
+
+function onGoogleToken(resp) {
+  if (resp.error) { showAuthErr('Auth failed: ' + resp.error); return; }
+  SS.set('fushi_cal_token', resp.access_token);
+  calToken = resp.access_token;
+  document.getElementById('authStatus').classList.add('show');
+  document.getElementById('authErr').classList.remove('show');
+  fetchCalendar7Days();
+  fetchUserInfo();
+}
+
+function showAuthErr(msg) {
+  const el = document.getElementById('authErr');
+  el.textContent = msg; el.classList.add('show');
+}
+
+async function fetchUserInfo() {
+  if (!calToken) return;
+  try {
+    const r = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { Authorization: `Bearer ${calToken}` } });
+    const u = await r.json();
+    SS.set('fushi_user', u.name || u.email || 'Connected');
+    if (document.getElementById('userName')) document.getElementById('userName').textContent = u.name || u.email;
+  } catch {}
+}
+
+async function fetchCalendar7Days() {
+  if (!calToken) return;
+  try {
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    const end = new Date(); end.setDate(end.getDate() + 7); end.setHours(23, 59, 59, 999);
+    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(now.toISOString())}&timeMax=${encodeURIComponent(end.toISOString())}&singleEvents=true&orderBy=startTime&maxResults=200`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${calToken}` } });
+    const data = await r.json();
+    calEvents = (data.items || []).filter(e => e.start?.dateTime);
+    SS.set('fushi_cal', calEvents);
+  } catch (e) { console.warn('Calendar fetch failed', e); }
+}
+
+async function syncCalendar() {
+  const btn = document.getElementById('syncBtn');
+  btn.classList.add('spinning');
+  calToken = SS.get('fushi_cal_token', null);
+  if (calToken) {
+    await fetchCalendar7Days();
+    toast('Calendar synced!', 'success');
+  } else {
+    toast('Connect Google Calendar in settings to sync.', 'error');
+  }
+  btn.classList.remove('spinning');
+  renderAll();
+}
+
+// ── STEP 2: Canvas LMS ─────────────────────────────────
+async function fetchCanvas() {
+  const baseUrl = document.getElementById('canvasUrl').value.trim().replace(/\/$/, '');
+  const token   = document.getElementById('canvasToken').value.trim();
+  const statusEl = document.getElementById('canvasStatus');
+  if (!baseUrl || !token) { statusEl.textContent = 'Enter institution URL and API token.'; statusEl.style.color = 'var(--high)'; return; }
+  statusEl.textContent = 'Fetching courses…'; statusEl.style.color = 'var(--muted)';
+  try {
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const cRes = await fetch(`${baseUrl}/api/v1/courses?enrollment_state=active&per_page=50`, { headers });
+    if (!cRes.ok) throw new Error(`HTTP ${cRes.status}`);
+    const courses = await cRes.json();
+    statusEl.textContent = `Found ${courses.length} courses — fetching assignments…`;
+    pendingAssignments = [];
+    const aFetches = courses.map(c =>
+      fetch(`${baseUrl}/api/v1/courses/${c.id}/assignments?bucket=upcoming&per_page=50`, { headers })
+        .then(r => r.ok ? r.json() : [])
+        .then(list => list.forEach(a => {
+          const pts = a.points_possible || 0;
+          const priority = pts >= 100 ? 'high' : pts >= 50 ? 'med' : 'low';
+          const durationMap = { high: 90, med: 60, low: 45 };
+          pendingAssignments.push({
+            id: uid(), name: a.name, course: c.name,
+            due: a.due_at ? a.due_at.split('T')[0] : '',
+            priority, duration: durationMap[priority],
+            done: false, source: 'canvas',
+            _checked: true,
+          });
+        }))
+    );
+    await Promise.all(aFetches);
+    statusEl.textContent = `${pendingAssignments.length} assignments found. Deselect any to skip.`;
+    statusEl.style.color = 'var(--done)';
+    renderAssignList();
+  } catch (e) {
+    statusEl.textContent = `Failed: ${e.message}. Try the .ics upload instead.`;
+    statusEl.style.color = 'var(--high)';
+  }
+}
+
+function renderAssignList() {
+  const el = document.getElementById('assignList');
+  el.style.display = pendingAssignments.length ? 'block' : 'none';
+  el.innerHTML = pendingAssignments.map((a, i) => `
+    <div class="assign-item">
+      <input type="checkbox" id="ac${i}" ${a._checked ? 'checked' : ''} onchange="pendingAssignments[${i}]._checked=this.checked">
+      <label for="ac${i}" style="flex:1;cursor:pointer">${a.name}</label>
+      <span class="tag tag-${a.priority}">${a.priority}</span>
+      <span class="assign-course">${a.course || ''}</span>
+    </div>`).join('');
+}
+
+function importSelected() {
+  const toAdd = pendingAssignments.filter(a => a._checked).map(a => ({ ...a, _checked: undefined }));
+  if (toAdd.length) {
+    const existing = new Set(tasks.map(t => t.name + t.due));
+    toAdd.forEach(a => { if (!existing.has(a.name + a.due)) tasks.push(a); });
+    saveTasks();
+    toast(`Imported ${toAdd.length} assignments`, 'success');
+  }
+  nextStep();
+}
+
+// ── ICS Parser ─────────────────────────────────────────
+function handleIcs(evt) {
+  const file = evt.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const lines = e.target.result.replace(/\r\n|\r/g, '\n').split('\n');
+      const events = []; let cur = null;
+      for (const line of lines) {
+        if (line === 'BEGIN:VEVENT') { cur = {}; }
+        else if (line === 'END:VEVENT' && cur) {
+          if (cur.SUMMARY) events.push(cur);
+          cur = null;
+        } else if (cur) {
+          const colon = line.indexOf(':');
+          if (colon < 0) continue;
+          const key = line.slice(0, colon).split(';')[0];
+          const val = line.slice(colon + 1).trim();
+          cur[key] = val;
+        }
+      }
+      pendingAssignments = events.map(ev => {
+        const rawDate = ev.DUE || ev.DTSTART || '';
+        const dateStr = rawDate.length >= 8 ? `${rawDate.slice(0,4)}-${rawDate.slice(4,6)}-${rawDate.slice(6,8)}` : '';
+        return { id: uid(), name: ev.SUMMARY || 'Untitled', due: dateStr, priority: 'med', duration: 60, done: false, source: 'ics', _checked: true };
+      });
+      document.getElementById('icsStatus').textContent = `Parsed ${events.length} events from .ics`;
+      renderAssignList();
+    } catch (err) { document.getElementById('icsStatus').textContent = 'Failed to parse .ics file.'; }
+  };
+  reader.readAsText(file);
+}
+
+// ── STEP 3: Activities ─────────────────────────────────
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+function defaultActivities() {
+  return [
+    { id: uid(), name: 'Gym',   days: [0, 2, 4], start: '06:00', end: '07:00', color: '#4ade80' },
+    { id: uid(), name: 'Lunch', days: [0,1,2,3,4,5,6], start: '12:00', end: '12:45', color: '#fb923c' },
+  ];
+}
+
+function renderActivitiesEditor() {
+  if (!activities) activities = defaultActivities();
+  const el = document.getElementById('activityList');
+  el.innerHTML = activities.map((a, i) => `
+    <div class="activity-row" id="ar${a.id}">
+      <div class="activity-row-top">
+        <input type="text" value="${escHtml(a.name)}" placeholder="Activity name" onchange="activities[${i}].name=this.value">
+        <input type="color" value="${a.color}" onchange="activities[${i}].color=this.value">
+      </div>
+      <div class="activity-times">
+        <input type="time" value="${a.start}" onchange="activities[${i}].start=this.value">
+        <span>→</span>
+        <input type="time" value="${a.end}" onchange="activities[${i}].end=this.value">
+      </div>
+      <div class="day-chips">
+        ${DAYS.map((d, di) => `<span class="day-chip ${a.days.includes(di) ? 'on' : ''}" onclick="toggleActDay(${i},${di},this)">${d}</span>`).join('')}
+      </div>
+      <button class="btn-rm" onclick="removeActivity(${i})" style="margin-top:.4rem">✕ Remove</button>
+    </div>`).join('');
+}
+
+function toggleActDay(actIdx, day, el) {
+  const a = activities[actIdx];
+  const idx = a.days.indexOf(day);
+  idx >= 0 ? a.days.splice(idx, 1) : a.days.push(day);
+  el.classList.toggle('on', a.days.includes(day));
+}
+
+function addActivity() {
+  activities.push({ id: uid(), name: '', days: [], start: '09:00', end: '10:00', color: '#818cf8' });
+  renderActivitiesEditor();
+}
+
+function removeActivity(i) {
+  activities.splice(i, 1);
+  renderActivitiesEditor();
+}
+
+function saveActivities() {
+  LS.set('fushi_activities', activities);
+  nextStep();
+}
+
+// ── STEP 4: Preferences & Finish ──────────────────────
+function finishOnboarding() {
+  // Collect prefs
+  const days = [];
+  document.querySelectorAll('#prefDays .day-chip.on').forEach(c => days.push(parseInt(c.dataset.d)));
+  prefs = {
+    start: document.getElementById('prefStart').value || '08:00',
+    end:   document.getElementById('prefEnd').value   || '22:00',
+    days,
+    maxHours:   parseInt(document.getElementById('prefMaxHours').value)   || 4,
+    sessionLen: parseInt(document.getElementById('prefSessionLen').value) || 60,
+  };
+  LS.set('fushi_prefs', prefs);
+  LS.set('fushi_activities', activities);
+  LS.set('fushi_onboarded', true);
+  document.getElementById('onboarding').classList.add('hidden');
+  showApp();
+}
+
+// Pref day chip toggle
+document.querySelectorAll('#prefDays .day-chip').forEach(c => {
+  c.addEventListener('click', () => c.classList.toggle('on'));
+});
+
+// ── APP INIT ───────────────────────────────────────────
+function showApp() {
+  document.getElementById('app').style.display = 'block';
+  // Restore user name
+  const savedUser = SS.get('fushi_user', null);
+  if (savedUser) document.getElementById('userName').textContent = savedUser;
+  // Restore client ID to token client if needed
+  const savedClientId = LS.get('fushi_gclient', null);
+  if (savedClientId && typeof google !== 'undefined' && google.accounts && !tokenClient) {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: savedClientId,
+      scope: 'https://www.googleapis.com/auth/calendar.readonly',
+      callback: async (resp) => {
+        if (!resp.error) {
+          SS.set('fushi_cal_token', resp.access_token);
+          calToken = resp.access_token;
+          await fetchCalendar7Days();
+          renderAll();
+        }
+      },
+    });
+  }
+  // Seed demo tasks if empty
+  if (!tasks.length) seedDemoTasks();
+  renderAll();
+  // Set default due date
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+  document.getElementById('taskDue').value = isoDate(tomorrow);
+}
+
+function seedDemoTasks() {
+  const t = new Date(), fmt = n => { const d = new Date(t); d.setDate(d.getDate() + n); return isoDate(d); };
+  tasks = [
+    { id: uid(), name: 'Math Problem Set', duration: 90, priority: 'high', due: fmt(1), done: false },
+    { id: uid(), name: 'History Reading',  duration: 45, priority: 'high', due: fmt(1), done: false },
+    { id: uid(), name: 'English Essay',    duration: 120, priority: 'med', due: fmt(4), done: false },
+    { id: uid(), name: 'Science Lab Report', duration: 60, priority: 'low', due: fmt(7), done: false },
+  ];
+  saveTasks();
+}
+
+function renderAll() {
+  renderWeeklyGrid();
+  renderNow();
+  renderQueue();
+  updateAvailableTime();
+}
+
+// ── AVAILABLE TIME ─────────────────────────────────────
+function busyIntervalsToday() {
+  const today = isoDate(new Date());
+  const intervals = [];
+  // Calendar events
+  calEvents.forEach(ev => {
+    if (!ev.start?.dateTime) return;
+    const s = new Date(ev.start.dateTime), e = new Date(ev.end?.dateTime || ev.start.dateTime);
+    if (isoDate(s) === today) intervals.push([s.getHours() * 60 + s.getMinutes(), e.getHours() * 60 + e.getMinutes()]);
+  });
+  // Activities
+  if (activities) {
+    const dow = (new Date().getDay() + 6) % 7; // 0=Mon
+    activities.filter(a => a.days.includes(dow)).forEach(a => {
+      const [sh, sm] = a.start.split(':').map(Number);
+      const [eh, em] = a.end.split(':').map(Number);
+      intervals.push([sh * 60 + sm, eh * 60 + em]);
+    });
+  }
+  return intervals;
+}
+
+function updateAvailableTime() {
+  const now = new Date();
+  const p = prefs || { start: '08:00', end: '22:00' };
+  const [eh, em] = p.end.split(':').map(Number);
+  const endMin = eh * 60 + em;
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const totalLeft = Math.max(0, endMin - nowMin);
+  const busy = busyIntervalsToday().reduce((s, [a, b]) => s + Math.max(0, b - Math.max(a, nowMin)), 0);
+  const free = Math.max(0, totalLeft - busy);
+  const pct = totalLeft > 0 ? Math.round(free / totalLeft * 100) : 0;
+  document.getElementById('availFill').style.width = pct + '%';
+  document.getElementById('availText').textContent = `~${fmtDuration(Math.round(free))} free`;
+}
+
+// ── NOW CARD ───────────────────────────────────────────
+function renderNow() {
+  const el = document.getElementById('nowSection');
+  const q = sortedQueue();
+  if (!q.length) {
+    el.innerHTML = `<div class="now-card empty-now"><div class="big-emoji">${tasks.every(t => t.done) && tasks.length ? '🎉' : '✌️'}</div><h3>${tasks.every(t => t.done) && tasks.length ? 'All caught up!' : 'Queue empty'}</h3><p>Add assignments below.</p></div>`;
+    return;
+  }
+  const t = q[0];
+  const pClass = `tag-${t.priority}`;
+  const d = daysUntil(t.due);
+  const dClass = d <= 1 ? 'due-urgent' : d <= 3 ? 'due-soon' : '';
+  el.innerHTML = `<div class="now-card">
+    <div class="now-badge"><div class="live-dot"></div> Now</div>
+    <div class="now-title">${escHtml(t.name)}</div>
+    <div class="now-meta">
+      <span class="now-meta-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>${fmtDuration(t.duration)}</span>
+      ${t.due ? `<span class="now-meta-item ${dClass}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>${fmtDue(t.due)}</span>` : ''}
+      <span class="tag ${pClass}">${t.priority}</span>
+    </div>
+    <div class="now-reason">💡 ${getReason(t, 0)}</div>
+    <div class="now-actions">
+      <button class="btn-done" onclick="markDone('${t.id}')">✓ Done</button>
+      <button class="btn-skip" onclick="skipTask('${t.id}')">Skip</button>
+    </div>
+    ${sessionStart ? `<div class="sp-bar"><div class="sp-fill" id="spFill"></div></div>` : ''}
+  </div>`;
+}
+
+function getReason(t, rank) {
+  const d = daysUntil(t.due);
+  const r = [];
+  if (d <= 1) r.push('Due very soon');
+  if (t.priority === 'high') r.push('High priority');
+  if (t.duration <= 45) r.push(`Quick win (${t.duration}min)`);
+  if (!r.length) r.push('Best use of time right now');
+  return r.join(' · ');
+}
+
+// ── QUEUE ──────────────────────────────────────────────
+function renderQueue() {
+  const el = document.getElementById('queueList');
+  const active = sortedQueue(), done = tasks.filter(t => t.done);
+  document.getElementById('queueCount').textContent = `${tasks.length} task${tasks.length !== 1 ? 's' : ''}`;
+  if (!tasks.length) { el.innerHTML = '<div class="empty-queue">Add assignments to get started</div>'; return; }
+  const items = [...active.map((t, i) => ({ t, rank: i + 1, isDone: false })), ...done.map(t => ({ t, rank: null, isDone: true }))];
+  el.innerHTML = items.map(({ t, rank, isDone }) => {
+    const pClass = `tag-${t.priority}`, d = daysUntil(t.due), dClass = d <= 1 ? 'due-urgent' : d <= 3 ? 'due-soon' : '';
+    return `<div class="queue-item ${isDone ? 'done-item' : ''}">
+      <div class="queue-rank">${isDone ? '✓' : rank}</div>
+      <div class="queue-item-info">
+        <div class="queue-item-name">${escHtml(t.name)}</div>
+        <div class="queue-item-meta">
+          <span class="queue-item-time">${fmtDuration(t.duration)}</span>
+          <span class="tag ${pClass}">${t.priority}</span>
+          ${t.due ? `<span class="queue-item-due ${dClass}">${fmtDue(t.due)}</span>` : ''}
+          ${isDone ? '<span class="tag tag-done">done</span>' : ''}
+          ${t.course ? `<span class="queue-item-due">${escHtml(t.course)}</span>` : ''}
+        </div>
+      </div>
+      <div class="queue-item-actions">
+        ${!isDone ? `<button class="btn-icon" onclick="markDone('${t.id}')" title="Done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button>` : ''}
+        <button class="btn-icon del" onclick="deleteTask('${t.id}')" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── ACTIONS ────────────────────────────────────────────
+function addTask() {
+  const name = document.getElementById('taskName').value.trim();
+  const duration = parseInt(document.getElementById('taskDuration').value) || 60;
+  const priority = document.getElementById('taskPriority').value;
+  const due = document.getElementById('taskDue').value;
+  if (!name) { toast('Enter an assignment name', 'error'); return; }
+  tasks.push({ id: uid(), name, duration, priority, due, done: false });
+  saveTasks(); renderAll();
+  document.getElementById('taskName').value = '';
+  document.getElementById('taskDuration').value = '';
+  toast(`Added "${name}"`, 'success');
+}
+
+function markDone(id) {
+  const t = tasks.find(x => x.id === id);
+  if (t) { t.done = true; saveTasks(); renderAll(); toast(`✓ "${t.name}" done!`, 'success'); }
+}
+
+function skipTask(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  tasks = tasks.filter(x => x.id !== id); tasks.push(t);
+  saveTasks(); renderAll(); toast('Skipped — moved to end', 'success');
+}
+
+function deleteTask(id) {
+  const t = tasks.find(x => x.id === id);
+  tasks = tasks.filter(x => x.id !== id);
+  saveTasks(); renderAll();
+  if (t) toast(`Removed "${t.name}"`, 'success');
+}
+
+// ── WEEK NAVIGATION ────────────────────────────────────
+function shiftWeek(d) {
+  currentWeekStart = addDays(currentWeekStart, d * 7);
+  renderWeeklyGrid();
+  updateWeekLabel();
+}
+
+function goToday() {
+  currentWeekStart = getWeekStart(new Date());
+  renderWeeklyGrid();
+  updateWeekLabel();
+}
+
+function updateWeekLabel() {
+  const end = addDays(currentWeekStart, 6);
+  const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  document.getElementById('weekLabel').textContent = `${fmt(currentWeekStart)} – ${fmt(end)}`;
+}
+
+// ── AUTO-SCHEDULER ─────────────────────────────────────
+function computeSchedule() {
+  // Returns array of { task, date (isoDate), startMin, endMin }
+  const p = prefs || { start: '08:00', end: '22:00', days: [0,1,2,3,4,5,6], maxHours: 4, sessionLen: 60 };
+  const [startH, startM] = p.start.split(':').map(Number);
+  const [endH, endM]     = p.end.split(':').map(Number);
+  const workStart = startH * 60 + startM;
+  const workEnd   = endH * 60 + endM;
+  const maxMin    = (p.maxHours || 4) * 60;
+  const sesLen    = p.sessionLen || 60;
+  const scheduled = [];
+  const queue     = sortedQueue().filter(t => !t.done);
+  if (!queue.length) return [];
+
+  // For each day this week
+  for (let di = 0; di < 7; di++) {
+    if (!p.days.includes(di)) continue;
+    const date = addDays(currentWeekStart, di);
+    const dateStr = isoDate(date);
+
+    // Collect busy intervals for this day
+    const busy = [];
+    // Calendar events
+    calEvents.forEach(ev => {
+      if (!ev.start?.dateTime) return;
+      const s = new Date(ev.start.dateTime), e = new Date(ev.end?.dateTime || ev.start.dateTime);
+      if (isoDate(s) !== dateStr) return;
+      busy.push([s.getHours() * 60 + s.getMinutes(), e.getHours() * 60 + e.getMinutes()]);
+    });
+    // Activities
+    if (activities) {
+      activities.filter(a => a.days.includes(di)).forEach(a => {
+        const [sh, sm] = a.start.split(':').map(Number);
+        const [eh, em] = a.end.split(':').map(Number);
+        busy.push([sh * 60 + sm, eh * 60 + em]);
+      });
+    }
+    // Already-scheduled study blocks from previous days
+    scheduled.forEach(s => { if (s.date === dateStr) busy.push([s.startMin, s.endMin]); });
+    busy.sort((a, b) => a[0] - b[0]);
+
+    let usedToday = 0;
+    let cursor = workStart;
+
+    while (cursor < workEnd && usedToday < maxMin && queue.length) {
+      // Find next gap
+      let gapStart = cursor;
+      let gapEnd = workEnd;
+      for (const [bs, be] of busy) {
+        if (bs > gapStart) { gapEnd = Math.min(gapEnd, bs); break; }
+        if (be > gapStart) { gapStart = be; }
+      }
+      if (gapStart >= workEnd) break;
+      const gapLen = Math.min(gapEnd - gapStart, maxMin - usedToday, sesLen);
+      if (gapLen < 15) { cursor = gapEnd + 5; continue; }
+
+      // Fill gap with tasks
+      let cur = gapStart;
+      while (cur < gapStart + gapLen && queue.length && usedToday < maxMin) {
+        const t = queue[0];
+        const needed = Math.min(t.duration, gapStart + gapLen - cur, maxMin - usedToday);
+        if (needed < 10) break;
+        const block = { task: t, date: dateStr, startMin: cur, endMin: cur + needed };
+        scheduled.push(block);
+        busy.push([cur, cur + needed]); busy.sort((a, b) => a[0] - b[0]);
+        usedToday += needed; cur += needed + 5; // 5-min micro break
+        if (needed >= t.duration) queue.shift(); // fully scheduled
+        else { queue[0] = { ...t, duration: t.duration - needed }; } // partially scheduled
+      }
+      cursor = gapEnd + 5;
+    }
+  }
+  return scheduled;
+}
+
+// ── WEEKLY GRID ────────────────────────────────────────
+const GRID_START = 6; // 6 AM
+const GRID_END   = 23; // 11 PM
+const HOURS      = GRID_END - GRID_START; // 17 hours
+const PX_PER_MIN = 1; // 1px per minute → 60px per hour (matches grid-day-col height:60px)
+
+function renderWeeklyGrid() {
+  updateWeekLabel();
+  const grid = document.getElementById('weekGrid');
+  const today = isoDate(new Date());
+  const schedule = computeSchedule();
+
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const days = Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
+
+  // Header row
+  let html = `<div class="grid-corner"></div>`;
+  days.forEach((d, i) => {
+    const isToday = isoDate(d) === today;
+    html += `<div class="grid-head-cell">
+      <div class="grid-day-name">${dayNames[i]}</div>
+      <div class="grid-day-num ${isToday ? 'today-num' : ''}">${d.getDate()}</div>
+    </div>`;
+  });
+
+  // Body rows (one per hour)
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const nowOffset = (nowMin - GRID_START * 60) * PX_PER_MIN;
+
+  for (let h = GRID_START; h < GRID_END; h++) {
+    const isFirst = h === GRID_START;
+    html += `<div class="grid-time-cell">${isFirst ? '' : (h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h - 12}pm`)}</div>`;
+    days.forEach((d, di) => {
+      const isToday = isoDate(d) === today;
+      const col = `day-${di}-h${h}`;
+
+      // Collect blocks for this day+hour
+      let blocksHtml = '';
+
+      // now-line
+      if (isToday && h === GRID_START) {
+        const clampedOffset = Math.max(0, Math.min(HOURS * 60 * PX_PER_MIN, nowOffset));
+        blocksHtml += `<div class="now-line" style="top:${clampedOffset}px"></div>`;
+      }
+
+      // Activity blocks (only in first hour row, full height positioned absolutely)
+      if (h === GRID_START && activities) {
+        const dow = di; // 0=Mon
+        activities.filter(a => a.days.includes(dow)).forEach(a => {
+          const [sh, sm] = a.start.split(':').map(Number);
+          const [eh, em] = a.end.split(':').map(Number);
+          const top = ((sh * 60 + sm) - GRID_START * 60) * PX_PER_MIN;
+          const height = ((eh * 60 + em) - (sh * 60 + sm)) * PX_PER_MIN;
+          if (top + height < 0 || top > HOURS * 60) return;
+          blocksHtml += `<div class="ev-block ev-activity" style="top:${top}px;height:${height}px;background:${hexAlpha(a.color, 0.22)};border:1px solid ${hexAlpha(a.color, 0.45)};color:${a.color}">
+            <div class="ev-title">${escHtml(a.name)}</div>
+            <div class="ev-time">${a.start}–${a.end}</div>
+          </div>`;
+        });
+      }
+
+      // Calendar event blocks (only in first hour row, absolutely positioned)
+      if (h === GRID_START) {
+        const dateStr = isoDate(d);
+        calEvents.filter(ev => ev.start?.dateTime && isoDate(new Date(ev.start.dateTime)) === dateStr).forEach(ev => {
+          const s = new Date(ev.start.dateTime), e = new Date(ev.end?.dateTime || ev.start.dateTime);
+          const top = ((s.getHours() * 60 + s.getMinutes()) - GRID_START * 60) * PX_PER_MIN;
+          const height = ((e.getHours() * 60 + e.getMinutes()) - (s.getHours() * 60 + s.getMinutes())) * PX_PER_MIN;
+          if (top + height < 0 || top > HOURS * 60) return;
+          blocksHtml += `<div class="ev-block ev-gcal" style="top:${top}px;height:${Math.max(20, height)}px">
+            <div class="ev-title">${escHtml(ev.summary || 'Event')}</div>
+            <div class="ev-time">${s.getHours().toString().padStart(2,'0')}:${s.getMinutes().toString().padStart(2,'0')}</div>
+          </div>`;
+        });
+      }
+
+      // Study session blocks (only in first hour row, absolutely positioned)
+      if (h === GRID_START) {
+        const dateStr = isoDate(d);
+        schedule.filter(s => s.date === dateStr).forEach(s => {
+          const top = (s.startMin - GRID_START * 60) * PX_PER_MIN;
+          const height = (s.endMin - s.startMin) * PX_PER_MIN;
+          if (top + height < 0 || top > HOURS * 60) return;
+          blocksHtml += `<div class="ev-block ev-study" style="top:${top}px;height:${Math.max(20, height)}px">
+            <div class="ev-title">${escHtml(s.task.name)}</div>
+            <div class="ev-time">${minToTime(s.startMin)}–${minToTime(s.endMin)}</div>
+          </div>`;
+        });
+      }
+
+      html += `<div class="grid-day-col${isToday ? ' today-col' : ''}" style="position:relative;${h === GRID_START ? `height:${HOURS * 60 * PX_PER_MIN}px;` : ''}">${h === GRID_START ? blocksHtml : ''}</div>`;
+    });
+  }
+
+  grid.innerHTML = html;
+}
+
+function minToTime(m) {
+  const h = Math.floor(m / 60), min = m % 60;
+  return `${h.toString().padStart(2,'0')}:${min.toString().padStart(2,'0')}`;
+}
+
+function hexAlpha(hex, alpha) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── TOAST ──────────────────────────────────────────────
+function toast(msg, type = '') {
+  const c = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ'}</span><span>${msg}</span>`;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ── STARTUP ────────────────────────────────────────────
+setInterval(() => { updateAvailableTime(); renderNow(); }, 60000);
+setInterval(() => renderWeeklyGrid(), 300000); // refresh grid every 5min
+
+window.addEventListener('load', () => {
+  const onboarded = LS.get('fushi_onboarded', false);
+  calToken = SS.get('fushi_cal_token', null);
+  activities = LS.get('fushi_activities', null);
+  prefs      = LS.get('fushi_prefs', null);
+  tasks      = LS.get('fushi_tasks', []);
+  calEvents  = SS.get('fushi_cal', []);
+
+  // Restore saved Google Client ID into field
+  const savedClientId = LS.get('fushi_gclient', '');
+  const cidEl = document.getElementById('gClientId');
+  if (cidEl && savedClientId) cidEl.value = savedClientId;
+
+  if (onboarded) {
+    document.getElementById('onboarding').classList.add('hidden');
+    showApp();
+  } else {
+    showOnboarding();
+  }
+});
+
+</script>
+</body>
+</html>
